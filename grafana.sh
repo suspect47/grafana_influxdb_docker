@@ -44,7 +44,7 @@ docker network create monitoring
 docker volume create grafana-volume
 docker volume create influxdb-volume
 
-cd /opt/monitoring/ && server1$ docker run --rm -e INFLUXDB_DB=telegraf -e INFLUXDB_ADMIN_ENABLED=true -e INFLUXDB_ADMIN_USER=user -e INFLUXDB_ADMIN_PASSWORD=123456 -e INFLUXDB_USER=user -e INFLUXDB_USER_PASSWORD=123456 -v influxdb-volume:/var/lib/influxdb influxdb /init-influxdb.sh
+cd /opt/monitoring/ && docker run --rm -e INFLUXDB_DB=telegraf -e INFLUXDB_ADMIN_ENABLED=true -e INFLUXDB_ADMIN_USER=user -e INFLUXDB_ADMIN_PASSWORD=123456 -e INFLUXDB_USER=user -e INFLUXDB_USER_PASSWORD=123456 -v influxdb-volume:/var/lib/influxdb influxdb /init-influxdb.sh
 
 docker-compose up -d
 
