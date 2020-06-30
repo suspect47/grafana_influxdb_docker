@@ -93,7 +93,5 @@ service telegraf start
 
 ###### Get grafana plugins
 
-docker exec -it grafana /bin/bash
-grafana-cli plugins install grafana-clock-panel
-exit
+docker exec grafana grafana-cli plugins install grafana-clock-panel
 docker container restart grafana
