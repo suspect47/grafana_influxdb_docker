@@ -1,7 +1,12 @@
 #!/bin/bash
+
+##### Installing dependencies
+
 apt update -y
 apt install curl gnupg gnupg2 docker.io docker-compose -y
 mkdir /opt/monitoring && cd /opt/monitoring
+
+##### Creating docker-compose file
 
 echo 'version: "2"
 services:
@@ -32,6 +37,8 @@ volumes:
     external: true
   influxdb-volume:
     external: true' > /opt/monitoring/docker-compose.yml
+    
+##### Creating docker networking and docker-volumes
 
 docker network create monitoring
 docker volume create grafana-volume
@@ -74,3 +81,19 @@ WantedBy=multi-user.target' > /etc/systemd/system/grafana.service
 systemctl enable influxdb.service
 systemctl enable influxdb.service
 systemctl daemon-reload
+
+#### Installing telegraf
+
+curl -sL https://repos.influxdata.com/influxdb.key | sudo apt-key add -
+source /etc/lsb-release
+echo "deb https://repos.influxdata.com/${DISTRIB_ID,,} ${DISTRIB_CODENAME} stable" | sudo tee /etc/apt/sources.list.d/influxdb.list
+
+apt-get update && apt-get install telegraf -y
+service telegraf start
+
+###### Get grafana plugins
+
+docker exec -it grafana /bin/bash
+grafana-cli plugins install grafana-clock-panel
+exit
+docker container restart grafana
