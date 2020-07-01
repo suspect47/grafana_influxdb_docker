@@ -87,7 +87,6 @@ service telegraf start
 docker exec grafana grafana-cli plugins install grafana-clock-panel
 docker exec grafana grafana-cli plugins install natel-influx-admin-panel
 docker exec grafana grafana-cli plugins install grafana-kubernetes-app
-docker container restart grafana
 
 #### Indicate datasource parameters
 
