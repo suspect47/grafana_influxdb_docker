@@ -64,39 +64,25 @@ cd /opt/monitoring/ && docker run --rm -e INFLUXDB_DB=telegraf -e INFLUXDB_ADMIN
 
 docker-compose up -d
 
-#### Create systemd units for autostart containers
+#### Create systemd unit for docker-compose
 
 echo '[Unit]
-Description=influxdb container
-Requires=docker.service                            
+Description=docker-compose
+Requires=docker.service
 After=docker.service
 
 [Service]
-Restart=always
-ExecStart=/usr/bin/docker start -a influxdb
-ExecStop=/usr/bin/docker stop -t 2 influxdb
-TimeoutSec=30
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/monitoring
+ExecStart=/usr/local/bin/docker-compose -pabc up -d
+ExecStop=/usr/local/bin/docker-compose -pabc down
+TimeoutStartSec=0
 
 [Install]
-WantedBy=multi-user.target' > /etc/systemd/system/influxdb.service
+WantedBy=multi-user.target' > /etc/systemd/system/docker-compose.service
 
-echo '[Unit]
-Description=grafana container
-Requires=docker.service                            
-After=docker.service influxdb.service
-
-[Service]
-Restart=always
-ExecStart=/usr/bin/docker start -a grafana
-ExecStop=/usr/bin/docker stop -t 2 grafana
-TimeoutSec=30
-
-[Install]
-WantedBy=multi-user.target' > /etc/systemd/system/grafana.service
-
-systemctl enable influxdb.service
-systemctl enable influxdb.service
-systemctl daemon-reload
+systemctl enable docker-compose.service
 
 #### Installing telegraf
 
@@ -112,4 +98,27 @@ service telegraf start
 docker exec grafana grafana-cli plugins install grafana-clock-panel
 docker exec grafana grafana-cli plugins install natel-influx-admin-panel
 docker exec grafana grafana-cli plugins install grafana-kubernetes-app
+docker container restart grafana
+
+#### Indicate datasource parameters
+
+echo 'apiVersion: 1
+
+datasources:
+  - name: Influxdb
+    type: influxdb
+    url: http://influxdb:8086
+    database: telegraf
+    user: user
+    password: 123456' > /opt/monitoring/datasource.yml
+
+docker cp /opt/monitoring/datasource.yml grafana:/etc/grafana/provisioning/datasources/datasource.yml
+rm -f /opt/monitoring/datasource.yml
+
+#### Setting admin password
+
+docker exec grafana grafana-cli admin reset-admin-password 123456
+
+#### Restarting grafana container
+
 docker container restart grafana
