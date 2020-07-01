@@ -1,16 +1,5 @@
 # после установки скрипта веб-интерфейс графаны будет находиться по адресу: http://your_host_ip:3000
-# после первого входа необходимо ввести учетные данные по-умолчанию (admin/admin) и сменить пароль
-# далее идем в Configuration - Data sources - Add data sources и добавляем Influxdb
-# указываем url = http://influxdb:8086
-# указываем Database = telegraf
-# указываем User = user
-# указываем Password = 123456
-# кликаем Save & test = Data source is working
-# далее кликаем + (Create) - Import и вводим id нужного Dashboard (например, 914 или 1443, etc...)
-# жмем Load
-# Указываем Influxdb = Influxdb
-# жмем Import
-# все готово, получаем необходимый мониторинг
+# учетные данные для входа в веб-интерфейс: admin/123456 
 # названия нужных плагинов для предустановки из скрипта указываются в блоке "Get grafana plugins"
 # в данном скрипте предустанавливается три плагина - clock panel, influx admin и kubernetes
 
