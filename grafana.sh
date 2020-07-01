@@ -1,9 +1,25 @@
+# после установки скрипта веб-интерфейс графаны будет находиться по адресу: http://your_host_ip:3000
+# после первого входа необходимо ввести учетные данные по-умолчанию (admin/admin) и сменить пароль
+# далее идем в Configuration - Data sources - Add data sources и добавляем Influxdb
+# указываем url = http://influxdb:8086
+# указываем Database = telegraf
+# указываем User = user
+# указываем Password = 123456
+# кликаем Save & test = Data source is working
+# далее кликаем + (Create) - Import и вводим id нужного Dashboard (например, 914 или 1443, etc...)
+# жмем Load
+# Указываем Influxdb = Influxdb
+# жмем Import
+# все готово, получаем необходимый мониторинг
+# названия нужных плагинов для предустановки из скрипта указываются в блоке "Get grafana plugins"
+# в данном скрипте предустанавливается три плагина - clock panel, influx admin и kubernetes
+
 #!/bin/bash
 
 ##### Installing dependencies
 
-apt update -y
-apt install curl gnupg gnupg2 docker.io docker-compose -y
+apt update
+apt install -y curl gnupg gnupg2 docker.io docker-compose
 mkdir /opt/monitoring && cd /opt/monitoring
 
 ##### Creating docker-compose file
@@ -94,4 +110,6 @@ service telegraf start
 ###### Get grafana plugins
 
 docker exec grafana grafana-cli plugins install grafana-clock-panel
+docker exec grafana grafana-cli plugins install natel-influx-admin-panel
+docker exec grafana grafana-cli plugins install grafana-kubernetes-app
 docker container restart grafana
