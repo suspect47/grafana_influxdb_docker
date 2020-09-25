@@ -1,30 +1,92 @@
-# после установки скрипта веб-интерфейс графаны будет находиться по адресу: http://your_host_ip:3000
-# учетные данные для входа в веб-интерфейс: admin/123456 
-# названия нужных плагинов для предустановки из скрипта указываются в блоке "Get grafana plugins"
-# в данном скрипте предустанавливается три плагина - clock panel, influx admin и kubernetes
-
-#!/bin/bash
-
-##### Installing dependencies
-
-apt update
-apt install -y curl gnupg gnupg2 docker.io docker-compose
-mkdir /opt/monitoring && cd /opt/monitoring
-
-##### Creating docker-compose file
-
-echo 'version: "2"
+version: '3.1'
 services:
+  zabbix-postgresql:
+    container_name: zabbix-postgresql
+    image: postgres:latest
+    restart: always
+    environment:
+      - POSTGRES_PASSWORD=zabbix
+      - POSTGRES_USER=zabbix
+      - POSTGRES_DB=zabbix
+    networks:
+      - monitoring
+    volumes:
+      - postgresql-volume:/var/lib/postgresql/data
+
+  zabbix-server:
+    container_name: zabbix-server
+    image: zabbix/zabbix-server-pgsql:ubuntu-5.0.1
+    restart: always
+    environment:
+      - ZBX_SERVER_HOST=zabbix-server
+      - DB_SERVER_HOST=zabbix-postgresql
+      - DB_SERVER_DBNAME=zabbix
+      - POSTGRES_USER=zabbix
+      - POSTGRES_PASSWORD=zabbix
+      - POSTGRES_DB=zabbix
+    depends_on:
+      - zabbix-postgresql
+    networks:
+      monitoring:
+        ipv4_address: 172.10.0.100
+    volumes:
+      - alertscripts:/usr/lib/zabbix/alertscripts
+      - snmptraps:/var/lib/zabbix/snmptraps:rw
+    ports:
+      - '10051:10051'
+
+  zabbix-web:
+    container_name: zabbix-web
+    image: zabbix/zabbix-web-apache-pgsql:ubuntu-5.0.1
+    restart: always
+    environment:
+      - ZBX_SERVER_HOST=zabbix-server
+      - DB_SERVER_HOST=zabbix-postgresql
+      - DB_SERVER_DBNAME=zabbix
+      - POSTGRES_USER=zabbix
+      - POSTGRES_PASSWORD=zabbix
+      - POSTGRES_DB=zabbix
+      - PHP_TZ=Europe/Moscow
+    networks:
+      -  monitoring
+    depends_on:
+      - zabbix-postgresql
+      - zabbix-server
+    ports:
+      - '81:8080'
+      - '8443:443'
+
+  zabbix-agent:
+    container_name: zabbix-agent
+    image: zabbix/zabbix-agent:latest
+    privileged: true
+    restart: always
+    environment:
+      - ZBX_SERVER_HOST=zabbix-server
+    depends_on:
+      - zabbix-server
+    links:
+      - zabbix-server
+    ports:
+      - '10055:10050'
+    networks:
+      - monitoring
+
   grafana:
-    image: grafana/grafana
     container_name: grafana
+    image: grafana/grafana:latest-ubuntu
     restart: always
     ports:
-      - 3000:3000
+     - 3000:3000
+    environment:
+      - GF_INSTALL_PLUGINS=alexanderzobnin-zabbix-app
+      - GF_SECURITY_ADMIN_USER=user
+      - GF_SECURITY_ADMIN_PASSWORD=123456
     networks:
       - monitoring
     volumes:
       - grafana-volume:/var/lib/grafana
+
   influxdb:
     image: influxdb
     container_name: influxdb
@@ -35,78 +97,48 @@ services:
       - monitoring
     volumes:
       - influxdb-volume:/var/lib/influxdb
+    environment:
+      - INFLUXDB_DB=telegraf
+      - INFLUXDB_ADMIN_USER=user
+      - INFLUXDB_ADMIN_PASSWORD=123456
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin
+    restart: unless-stopped
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=user@itrium.ru
+      - PGADMIN_DEFAULT_PASSWORD=123456
+      - PGADMIN_LISTEN_PORT=80
+    ports:
+      - 8080:80
+    depends_on:
+      - zabbix-postgresql
+    networks:
+      - monitoring
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+
+  zabbix-snmptraps:
+    image: zabbix/zabbix-snmptraps:ubuntu-5.0.1
+    ports:
+     - "162:1162/udp"
+    volumes:
+      - snmptraps:/var/lib/zabbix/snmptraps:rw
+    networks:
+      - monitoring
+
 networks:
   monitoring:
+    driver: bridge
+    ipam:
+     config:
+       - subnet: 172.10.0.0/16
+
 volumes:
+  postgresql-volume:
+  alertscripts:
   grafana-volume:
-    external: true
+  snmptraps:
   influxdb-volume:
-    external: true' > /opt/monitoring/docker-compose.yml
-    
-##### Creating docker networking and docker-volumes
-
-docker network create monitoring
-docker volume create grafana-volume
-docker volume create influxdb-volume
-
-cd /opt/monitoring/ && docker run --rm -e INFLUXDB_DB=telegraf -e INFLUXDB_ADMIN_ENABLED=true -e INFLUXDB_ADMIN_USER=user -e INFLUXDB_ADMIN_PASSWORD=123456 -e INFLUXDB_USER=user -e INFLUXDB_USER_PASSWORD=123456 -v influxdb-volume:/var/lib/influxdb influxdb /init-influxdb.sh
-
-docker-compose up -d
-
-#### Create systemd unit for docker-compose
-
-echo '[Unit]
-Description=docker-compose
-Requires=docker.service
-After=docker.service
-
-[Service]
-Type=oneshot
-RemainAfterExit=yes
-WorkingDirectory=/opt/monitoring
-ExecStart=/usr/local/bin/docker-compose -pabc up -d
-ExecStop=/usr/local/bin/docker-compose -pabc down
-TimeoutStartSec=0
-
-[Install]
-WantedBy=multi-user.target' > /etc/systemd/system/docker-compose.service
-
-systemctl enable docker-compose.service
-
-#### Installing telegraf
-
-curl -sL https://repos.influxdata.com/influxdb.key | sudo apt-key add -
-source /etc/lsb-release
-echo "deb https://repos.influxdata.com/${DISTRIB_ID,,} ${DISTRIB_CODENAME} stable" | sudo tee /etc/apt/sources.list.d/influxdb.list
-
-apt-get update && apt-get install telegraf -y
-service telegraf start
-
-###### Get grafana plugins
-
-docker exec grafana grafana-cli plugins install grafana-clock-panel
-docker exec grafana grafana-cli plugins install natel-influx-admin-panel
-docker exec grafana grafana-cli plugins install grafana-kubernetes-app
-
-#### Indicate datasource parameters
-
-echo 'apiVersion: 1
-
-datasources:
-  - name: Influxdb
-    type: influxdb
-    url: http://influxdb:8086
-    database: telegraf
-    user: user
-    password: 123456' > /opt/monitoring/datasource.yml
-
-docker cp /opt/monitoring/datasource.yml grafana:/etc/grafana/provisioning/datasources/datasource.yml
-rm -f /opt/monitoring/datasource.yml
-
-#### Setting admin password
-
-docker exec grafana grafana-cli admin reset-admin-password 123456
-
-#### Restarting grafana container
-
-docker container restart grafana
+  pgadmin-data:
